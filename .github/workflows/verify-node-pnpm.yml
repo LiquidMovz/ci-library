@@ -13,6 +13,10 @@ on:
         required: false
         type: string
         default: "24"
+      run-gitleaks:
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -34,7 +38,8 @@ jobs:
           node-version: ${{ inputs.node-version }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: gitleaks git --redact=100 --no-banner
+      - if: inputs.run-gitleaks
+        run: gitleaks git --redact=100 --no-banner
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
