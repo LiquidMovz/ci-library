@@ -23,31 +23,39 @@ const PIN_RE = /uses:\s*([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)@([0-9a-f]{40})(?:\s*#
 const seen = new Map(); // `${owner/repo}` -> { sha, tag, files: [] }
 const violations = [];
 
+function ghJson(path) {
+  return execFileSync("gh", ["api", path], { encoding: "utf8" });
+}
+
+function curlJson(url) {
+  return execFileSync("curl", ["-fsSL", "-H", "Accept: application/vnd.github+json", url], {
+    encoding: "utf8",
+  });
+}
+
+function getJson(apiPath) {
+  try {
+    return JSON.parse(ghJson(apiPath));
+  } catch {
+    return JSON.parse(curlJson(`https://api.github.com${apiPath}`));
+  }
+}
+
 function tagCommitSha(ownerRepo, tag) {
-  // Resolve the commit a lightweight/annotated tag points at, via gh (needs
-  // network + auth; gh CLI authenticated as LiquidMovz).
+  // Resolve the commit a lightweight/annotated tag points at.
+  // Prefer gh (authenticated); fall back to public curl so self-hosted
+  // runners without `gh auth` still verify public action pins.
   const ref = tag.startsWith("v") ? tag : `v${tag}`;
   try {
-    const out = execFileSync(
-      "gh",
-      ["api", `/repos/${ownerRepo}/git/ref/tags/${ref}`, "--jq", ".object"],
-      { encoding: "utf8" }
-    );
-    const obj = JSON.parse(out);
+    const obj = getJson(`/repos/${ownerRepo}/git/ref/tags/${ref}`).object;
     if (obj.type === "commit") return obj.sha;
     if (obj.type === "tag") {
-      const peeled = execFileSync(
-        "gh",
-        ["api", `/repos/${ownerRepo}/git/tags/${obj.sha}`, "--jq", ".object.sha"],
-        { encoding: "utf8" }
-      );
-      // gh --jq emits bare strings (no quotes) for string results.
-      return peeled.trim();
+      return getJson(`/repos/${ownerRepo}/git/tags/${obj.sha}`).object.sha;
     }
     return null;
   } catch (e) {
     console.error(`  [pin-resolve] ${ownerRepo}@${tag}: ${e.message.split("\n")[0]}`);
-    return null; // tag unresolvable (private/typo) — reported as violation
+    return null;
   }
 }
 
