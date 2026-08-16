@@ -35,6 +35,19 @@ on:
         required: false
         type: boolean
         default: true
+      run-types:
+        required: false
+        type: boolean
+        default: true
+      types-script:
+        description: npm script for types (nova-cf uses types; grok-remote uses typecheck)
+        required: false
+        type: string
+        default: types
+      run-check:
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -64,7 +77,9 @@ jobs:
         run: gitleaks git --redact=100 --no-banner
       - if: inputs.run-audit
         run: npm run security:audit:prod
-      - run: npm run types
-      - run: npm run check
+      - if: inputs.run-types
+        run: npm run ${{ inputs.types-script }}
+      - if: inputs.run-check
+        run: npm run check
       - run: npm test
       - run: npm run build
