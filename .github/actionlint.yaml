@@ -1,0 +1,6 @@
+# actionlint config for the platform CI library and wrapped repos.
+# Keeps the custom self-hosted label whitelisted so `actionlint` stays clean.
+self-hosted-runner:
+  labels:
+    - adapt-ci
+    - nova-cf-ci

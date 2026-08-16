@@ -1,0 +1,33 @@
+# SP-047: lint this library on every push. Runs on the same adapt-ci
+# self-hosted labels as the lanes it publishes. actionlint is on the host
+# (not an action pin — we cannot use a third-party actionlint action
+# without adding another SHA to verify).
+name: self-lint
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - adapt-ci
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: actionlint
+        run: |
+          actionlint -version
+          actionlint -config-file .github/actionlint.yaml \
+            .github/workflows/*.yml
+      - name: action-pin check
+        run: node scripts/check-action-pins.mjs .github/workflows/*.yml
