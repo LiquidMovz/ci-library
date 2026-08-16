@@ -1,0 +1,56 @@
+# Reusable workflow: verify Rust lane
+#
+# Library repo: adaptnova/.github (private). Call from a repo wrapper:
+#
+#   jobs:
+#     verify:
+#       uses: adaptnova/.github/.github/workflows/verify-rust.yml@v1
+#       with:
+#         working-directory: .
+
+name: Verify Rust
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Directory containing the Cargo workspace
+        required: false
+        type: string
+        default: "."
+      run-deny:
+        description: Run cargo-deny license/advisory check
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - adapt-ci
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@400e7407cfd7a091e5fbb6afec01ec146c432b7c # v2.7.7
+        with:
+          workspaces: ${{ inputs.working-directory }}
+      - run: cargo fmt --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - run: cargo build --workspace
+      - if: inputs.run-deny
+        run: cargo deny check 2>/dev/null || echo "cargo-deny not installed on runner; install once per host (see runner-provision/README)"

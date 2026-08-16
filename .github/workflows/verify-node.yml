@@ -1,0 +1,70 @@
+# Reusable workflow: verify Node.js lane
+#
+# Library repo: adaptnova/.github (private). Call from a repo wrapper:
+#
+#   jobs:
+#     verify:
+#       uses: adaptnova/.github/.github/workflows/verify-node.yml@v1
+#       with:
+#         node-version: 22
+#         working-directory: .
+#         run-gitleaks: true
+
+name: Verify Node.js
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node.js major version
+        required: false
+        type: string
+        default: "22"
+      working-directory:
+        description: Directory containing package.json
+        required: false
+        type: string
+        default: "."
+      run-gitleaks:
+        description: Run gitleaks secret scan
+        required: false
+        type: boolean
+        default: true
+      run-audit:
+        description: Run npm production security audit
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - adapt-ci
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+      - run: npm ci
+      - if: inputs.run-gitleaks
+        run: gitleaks git --redact=100 --no-banner
+      - if: inputs.run-audit
+        run: npm run security:audit:prod
+      - run: npm run types
+      - run: npm run check
+      - run: npm test
+      - run: npm run build

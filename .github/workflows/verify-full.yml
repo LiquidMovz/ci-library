@@ -1,0 +1,89 @@
+# Reusable workflow: verify full stack (node + rust + contract gates)
+#
+# The nova-cf pattern: TypeScript worker + Rust crates + generated-contract
+# stability. Extra gates are enabled per repo with inputs.
+
+name: Verify Full Stack
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        required: false
+        type: string
+        default: "22"
+      run-gitleaks:
+        required: false
+        type: boolean
+        default: true
+      run-audit:
+        required: false
+        type: boolean
+        default: true
+      check-generated-diff:
+        description: Assert generated file (worker-configuration.d.ts) is committed
+        required: false
+        type: boolean
+        default: false
+      generated-file:
+        required: false
+        type: string
+        default: worker-configuration.d.ts
+      node-contract-tests:
+        description: Space-separated node:test files to run
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  verify-node:
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - adapt-ci
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+      - run: npm ci
+      - if: inputs.run-gitleaks
+        run: gitleaks git --redact=100 --no-banner
+      - if: inputs.run-audit
+        run: npm run security:audit:prod
+      - run: npm run types
+      - if: inputs.check-generated-diff
+        run: git diff --exit-code -- ${{ inputs.generated-file }}
+      - if: inputs.node-contract-tests != ''
+        run: node --disable-warning=ExperimentalWarning --test ${{ inputs.node-contract-tests }}
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+
+  verify-rust:
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - adapt-ci
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@23bce251a8cd2ffc3c1075eaa236d25590a3a167 # v2.7.7
+      - run: cargo fmt --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - run: cargo build --workspace

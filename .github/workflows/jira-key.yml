@@ -1,0 +1,61 @@
+# Reusable workflow: Jira-key guard
+#
+# Runs from pull_request_target in the CALLER (trusted base revision, never
+# PR-controlled code). Validates the head branch name and PR title against the
+# project key regex.
+#
+# Caller wrapper example (see ../nova-cf/.github/workflows/novacf-key.yml):
+#
+#   on:
+#     pull_request_target:
+#       branches: [working, main]
+#       types: [opened, edited, reopened, synchronize]
+#   jobs:
+#     validate:
+#       uses: adaptnova/.github/.github/workflows/jira-key.yml@v1
+#       with:
+#         project-key: NOVACF
+
+name: Jira Key Guard
+
+on:
+  workflow_call:
+    inputs:
+      project-key:
+        description: Jira project key, uppercase (e.g. NOVACF)
+        required: true
+        type: string
+      validator-script:
+        description: Path to the validator script in the caller repo
+        required: false
+        type: string
+        default: scripts/validate-jira-key.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - adapt-ci
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.base.sha }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Require ${{ inputs.project-key }} Jira key
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.head_ref }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_REPOSITORY: ${{ github.repository }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          PROJECT_KEY: ${{ inputs.project-key }}
+        run: node ${{ inputs.validator-script }} "$BASE_REF" "$HEAD_REF" "$PR_TITLE" "$BASE_REPOSITORY" "$HEAD_REPOSITORY" "$PROJECT_KEY"
