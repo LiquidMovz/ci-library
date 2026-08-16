@@ -48,6 +48,19 @@ on:
         required: false
         type: boolean
         default: true
+      check-script:
+        description: npm script used when run-check is true (default check; rusty5 uses lint)
+        required: false
+        type: string
+        default: check
+      run-test:
+        required: false
+        type: boolean
+        default: true
+      run-build:
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -80,6 +93,8 @@ jobs:
       - if: inputs.run-types
         run: npm run ${{ inputs.types-script }}
       - if: inputs.run-check
-        run: npm run check
-      - run: npm test
-      - run: npm run build
+        run: npm run ${{ inputs.check-script }}
+      - if: inputs.run-test
+        run: npm test
+      - if: inputs.run-build
+        run: npm run build
