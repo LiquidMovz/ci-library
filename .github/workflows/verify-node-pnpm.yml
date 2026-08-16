@@ -1,0 +1,41 @@
+# Reusable workflow: verify node stack for pnpm workspaces (DSH pattern)
+#
+# Lane for pnpm-based repos (deepseek-harness): frozen-lockfile install,
+# gitleaks, lint, typecheck, test, build — the repo's own scripts, no
+# npm-specific assumptions.
+
+name: Verify Node (pnpm)
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        required: false
+        type: string
+        default: "24"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-node:
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - adapt-ci
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: gitleaks git --redact=100 --no-banner
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
